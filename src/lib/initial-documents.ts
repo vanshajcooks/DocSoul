@@ -1,4 +1,4 @@
-import { DocumentData } from "@/types/document";
+import { DocumentData, DocumentMeta } from "@/types/document";
 
 export const INITIAL_DOCUMENTS: DocumentData[] = [
   {
@@ -81,3 +81,18 @@ export const INITIAL_DOCUMENTS: DocumentData[] = [
     `,
   },
 ];
+
+
+export const INITIAL_DOCUMENT_METAS: DocumentMeta[] = INITIAL_DOCUMENTS.map((doc) => ({
+  id: doc.id,
+  title: doc.title,
+  icon: doc.icon,
+  isFavorite: doc.isFavorite,
+  createdAt: doc.createdAt,
+  updatedAt: doc.updatedAt,
+}));
+
+export function getInitialSeedContent(id: string): string {
+  const match = INITIAL_DOCUMENTS.find((d) => d.id === id);
+  return match?.content || "<p></p>";
+}

@@ -109,14 +109,21 @@ export function StatusBar({
                   <span>Unsaved changes</span>
                 </>
               )}
+              {saveStatus === "error" && (
+                <>
+                  <AlertCircle className="size-3 text-rose-500" />
+                  <span className="text-rose-600 dark:text-rose-400">Save error</span>
+                </>
+              )}
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
-            {saveStatus === "saving" && "Writing changes to local memory..."}
+            {saveStatus === "saving" && "Persisting updates to local storage..."}
             {saveStatus === "saved" && `Last saved at ${formattedTime}`}
             {saveStatus === "offline-cached" &&
               `Persistent local storage active. Last saved at ${formattedTime}`}
             {saveStatus === "unsaved" && "Modifications pending save"}
+            {saveStatus === "error" && "Error saving changes to local IndexedDB."}
           </TooltipContent>
         </Tooltip>
       </div>

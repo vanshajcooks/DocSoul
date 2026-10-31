@@ -11,5 +11,5 @@ export interface DocumentData extends DocumentMeta {
   content: string; // HTML string or serialized content
 }
 
-export type SaveStatus = "saved" | "saving" | "unsaved" | "offline-cached";
+export type SaveStatus = "saved" | "saving" | "unsaved" | "offline-cached" | "error";
 export type NetworkStatus = "online" | "offline";

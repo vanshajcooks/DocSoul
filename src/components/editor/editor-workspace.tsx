@@ -1,46 +1,38 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { DocumentData, SaveStatus, NetworkStatus } from "@/types/document";
+import { DocumentMeta, SaveStatus, NetworkStatus } from "@/types/document";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TipTapEditor } from "./tiptap-editor";
-import {
-  Star,
-  Clock,
-  Sparkles,
-  FileText,
-  Share2,
-  MoreHorizontal,
-  ChevronRight,
-  Smile,
-} from "lucide-react";
+import { Star, Clock, ChevronRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 const EMOJI_OPTIONS = ["📄", "✨", "🧠", "🚀", "💡", "📝", "⚡", "🎯", "📌", "🔥"];
 
 interface EditorWorkspaceProps {
-  document: DocumentData;
+  document: DocumentMeta;
+  initialContent?: string;
   networkStatus: NetworkStatus;
   saveStatus: SaveStatus;
   onUpdateTitle: (id: string, newTitle: string) => void;
   onUpdateIcon: (id: string, newIcon: string) => void;
   onToggleFavorite: (id: string) => void;
-  onUpdateContent: (id: string, newContent: string, wordCount: number) => void;
+  onContentChange: () => void;
 }
 
 export function EditorWorkspace({
   document,
+  initialContent,
   networkStatus,
   saveStatus,
   onUpdateTitle,
   onUpdateIcon,
   onToggleFavorite,
-  onUpdateContent,
+  onContentChange,
 }: EditorWorkspaceProps) {
   const [title, setTitle] = useState(document.title);
   const [wordCount, setWordCount] = useState(0);
@@ -54,11 +46,6 @@ export function EditorWorkspace({
     const val = e.target.value;
     setTitle(val);
     onUpdateTitle(document.id, val);
-  };
-
-  const handleContentChange = (newContent: string, count: number) => {
-    setWordCount(count);
-    onUpdateContent(document.id, newContent, count);
   };
 
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
@@ -155,12 +142,13 @@ export function EditorWorkspace({
         </div>
       </div>
 
-      {/* TipTap Rich Editor */}
+      {/* TipTap Rich Editor with Yjs & IndexedDB Persistence */}
       <TipTapEditor
         key={document.id}
         documentId={document.id}
-        initialContent={document.content}
-        onContentChange={handleContentChange}
+        initialContent={initialContent}
+        onContentChange={onContentChange}
+        onWordCountChange={setWordCount}
       />
     </div>
   );

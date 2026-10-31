@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Collaboration from "@tiptap/extension-collaboration";
 import Strike from "@tiptap/extension-strike";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import * as Y from "yjs";
+import { IndexeddbPersistence } from "y-indexeddb";
 import { FormattingToolbar } from "./formatting-toolbar";
 
 // Custom Strike extension mapping both Mod-Shift-x and Mod-Shift-s to toggleStrike
@@ -23,32 +26,40 @@ export const CustomStrike = Strike.extend({
 
 interface TipTapEditorProps {
   documentId: string;
-  initialContent: string;
-  onContentChange: (content: string, wordCount: number) => void;
+  initialContent?: string;
+  onContentChange: () => void;
+  onWordCountChange: (count: number) => void;
 }
 
-export function TipTapEditor({
-  documentId,
+interface TipTapEditorInnerProps {
+  documentId: string;
+  ydoc: Y.Doc;
+  initialContent?: string;
+  onContentChange: () => void;
+  onWordCountChange: (count: number) => void;
+}
+
+function TipTapEditorInner({
+  ydoc,
   initialContent,
   onContentChange,
-}: TipTapEditorProps) {
-  const [mounted, setMounted] = useState(false);
-  const [wordCount, setWordCount] = useState(0);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  onWordCountChange,
+}: TipTapEditorInnerProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
         },
-        // Disable built-in extensions to use explicit configured instances without duplicates
+        // Disable built-in extensions to avoid duplicates and use Collaboration undo/redo
         strike: false,
         link: false,
         underline: false,
+        undoRedo: false,
+      }),
+      Collaboration.configure({
+        document: ydoc,
+        field: "default",
       }),
       CustomStrike,
       Underline,
@@ -66,7 +77,6 @@ export function TipTapEditor({
         emptyEditorClass: "is-editor-empty",
       }),
     ],
-    content: initialContent,
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -85,35 +95,93 @@ export function TipTapEditor({
         return false;
       },
     },
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
+    onCreate: ({ editor }) => {
+      const fragment = ydoc.getXmlFragment("default");
+      // Seed content into Yjs only if this room has never been populated in IndexedDB
+      if (
+        fragment.length === 0 &&
+        initialContent &&
+        initialContent.trim() !== "" &&
+        initialContent.trim() !== "<p></p>"
+      ) {
+        editor.commands.setContent(initialContent);
+      }
       const text = editor.getText();
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      setWordCount(words);
-      onContentChange(html, words);
+      onWordCountChange(words);
+    },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText();
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      onWordCountChange(words);
+      onContentChange();
     },
   });
 
-  // Calculate initial word count once editor is ready
+  // Calculate word count when editor is ready
   useEffect(() => {
     if (editor) {
       const text = editor.getText();
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      setWordCount(words);
+      onWordCountChange(words);
     }
-  }, [editor]);
+  }, [editor, onWordCountChange]);
 
-  // Synchronize content when document switching occurs
+  return (
+    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-zinc-950">
+      <FormattingToolbar editor={editor} />
+
+      <div className="flex-1 overflow-y-auto px-6 py-6 md:px-16 md:py-10">
+        <div className="max-w-3xl mx-auto">
+          <EditorContent editor={editor} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TipTapEditor({
+  documentId,
+  initialContent,
+  onContentChange,
+  onWordCountChange,
+}: TipTapEditorProps) {
+  const [mounted, setMounted] = useState(false);
+  const [ydocState, setYdocState] = useState<{
+    doc: Y.Doc;
+    provider: IndexeddbPersistence;
+  } | null>(null);
+
   useEffect(() => {
-    if (editor && initialContent !== editor.getHTML()) {
-      editor.commands.setContent(initialContent, { emitUpdate: false });
-      const text = editor.getText();
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      setWordCount(words);
-    }
-  }, [documentId, editor, initialContent]);
+    setMounted(true);
+  }, []);
 
-  if (!mounted) {
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+
+    const doc = new Y.Doc();
+    const provider = new IndexeddbPersistence(
+      `souldocs-doc-${documentId}`,
+      doc
+    );
+
+    let isSubscribed = true;
+
+    provider.whenSynced.then(() => {
+      if (isSubscribed) {
+        setYdocState({ doc, provider });
+      }
+    });
+
+    return () => {
+      isSubscribed = false;
+      provider.destroy();
+      doc.destroy();
+      setYdocState(null);
+    };
+  }, [documentId, mounted]);
+
+  if (!mounted || !ydocState) {
     return (
       <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-zinc-950">
         <div className="h-10 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30" />
@@ -127,14 +195,13 @@ export function TipTapEditor({
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-zinc-950">
-      <FormattingToolbar editor={editor} />
-
-      <div className="flex-1 overflow-y-auto px-6 py-6 md:px-16 md:py-10">
-        <div className="max-w-3xl mx-auto">
-          <EditorContent editor={editor} />
-        </div>
-      </div>
-    </div>
+    <TipTapEditorInner
+      key={documentId}
+      documentId={documentId}
+      ydoc={ydocState.doc}
+      initialContent={initialContent}
+      onContentChange={onContentChange}
+      onWordCountChange={onWordCountChange}
+    />
   );
 }
